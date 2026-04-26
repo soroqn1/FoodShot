@@ -1,0 +1,27 @@
+version: '3'
+
+tasks:
+  install:
+    desc: Install dependencies
+    cmds:
+      - poetry install
+
+  up:
+    desc: Start all services (db, redis)
+    cmds:
+      - docker-compose up -d
+
+  down:
+    desc: Stop all services
+    cmds:
+      - docker-compose down
+
+  dev:
+    desc: Start FastAPI app with reload
+    cmds:
+      - poetry run uvicorn api.webhook:app --host 0.0.0.0 --port 8000 --reload
+
+  logs:
+    desc: Show docker logs
+    cmds:
+      - docker-compose logs -f
