@@ -20,8 +20,7 @@ dp.include_router(common.router)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    webhook_url = f"{config.WEBHOOK_URL}/webhook"
-    await bot.set_webhook(url=webhook_url)
+    await bot.set_webhook(url=config.WEBHOOK_URL)
     yield
     await bot.session.close()
 
