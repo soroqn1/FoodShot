@@ -16,7 +16,12 @@ async def get_nutrition_data(query: str, weight_g: int) -> dict:
         return None
 
     food = data["foods"][0]
-    nutrients = {n["nutrientName"]: n["value"] for n in food.get("foodNutrients", [])}
+    nutrients = {}
+    for n in food.get("foodNutrients", []):
+        name = n["nutrientName"]
+        if name == "Energy" and n.get("unitName", "").upper() != "KCAL":
+            continue
+        nutrients[name] = n["value"]
 
     ratio = weight_g / 100
 
