@@ -2,12 +2,24 @@ from aiogram import Bot, F, Router, types
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.keyboards import weight_adjust_keyboard
 from bot.states import FoodAnalysis
 from core.i18n import I18n
 from db import crud
 from services import calc, nutrition, vision
 
 router = Router()
+
+
+def _ask_bg_text(i18n: I18n, data: dict) -> str:
+    return i18n.get(
+        "ask-bg",
+        dish=data["dish_name"],
+        weight=data["weight_g"],
+        carbs=round(data["carbs_per_g"] * data["weight_g"], 1),
+        kcal=int(data["kcal_per_g"] * data["weight_g"]),
+        confidence=i18n.get(f"confidence-{data['confidence']}"),
+    )
 
 
 @router.message(F.photo)
@@ -28,33 +40,57 @@ async def handle_photo(
     photo_file = await bot.get_file(photo.file_id)
     photo_bytes = await bot.download_file(photo_file.file_path)
 
-    vision_data = await vision.analyze_food_photo(photo_bytes.read())
-    nutrition_data = await nutrition.get_nutrition_data(
-        vision_data["dish_name"], vision_data["weight_g"]
+    vision_data = await vision.analyze_food_photo(
+        photo_bytes.read(), language=user.language
     )
+    if not vision_data:
+        return await status_msg.edit_text(i18n.get("not-found"))
 
+    dish_display = vision_data["dish_name"]
+    dish_en = vision_data.get("dish_name_en", dish_display)
+    weight_g = vision_data["weight_g"]
+    confidence = vision_data.get("confidence", "medium")
+
+    nutrition_data = await nutrition.get_nutrition_data(dish_en, weight_g)
     if not nutrition_data:
         return await status_msg.edit_text(i18n.get("not-found"))
 
-    await state.update_data(
-        dish_name=vision_data["dish_name"],
-        weight_g=vision_data["weight_g"],
-        carbs=nutrition_data["carbs"],
-        protein=nutrition_data["protein"],
-        fat=nutrition_data["fat"],
-        kcal=nutrition_data["kcal"],
-        photo_id=photo.file_id,
+    state_data = {
+        "dish_name": dish_display,
+        "dish_en": dish_en,
+        "weight_g": weight_g,
+        "carbs_per_g": nutrition_data["carbs"] / weight_g,
+        "protein_per_g": nutrition_data["protein"] / weight_g,
+        "fat_per_g": nutrition_data["fat"] / weight_g,
+        "kcal_per_g": nutrition_data["kcal"] / weight_g,
+        "confidence": confidence,
+        "photo_id": photo.file_id,
+    }
+    await state.update_data(**state_data)
+    await state.set_state(FoodAnalysis.waiting_for_bg)
+
+    await status_msg.edit_text(
+        _ask_bg_text(i18n, state_data),
+        reply_markup=weight_adjust_keyboard(weight_g),
     )
 
-    await state.set_state(FoodAnalysis.waiting_for_bg)
-    await status_msg.edit_text(
-        i18n.get(
-            "ask-bg",
-            dish=vision_data["dish_name"],
-            weight=vision_data["weight_g"],
-            carbs=round(nutrition_data["carbs"], 1),
-        )
+
+@router.callback_query(FoodAnalysis.waiting_for_bg, F.data.startswith("weight:"))
+async def process_weight_adjust(
+    callback: types.CallbackQuery, state: FSMContext, i18n: I18n
+):
+    delta = int(callback.data.split(":")[1])
+    data = await state.get_data()
+
+    new_weight = max(10, data["weight_g"] + delta)
+    await state.update_data(weight_g=new_weight)
+    data["weight_g"] = new_weight
+
+    await callback.message.edit_text(
+        _ask_bg_text(i18n, data),
+        reply_markup=weight_adjust_keyboard(new_weight),
     )
+    await callback.answer()
 
 
 @router.message(FoodAnalysis.waiting_for_bg, F.text)
@@ -75,8 +111,12 @@ async def process_bg(
         except ValueError:
             return await message.answer(i18n.get("error-number"))
 
+    weight_g = data["weight_g"]
+    carbs = data["carbs_per_g"] * weight_g
+    kcal = int(data["kcal_per_g"] * weight_g)
+
     bolus = calc.calculate_bolus(
-        carbs=data["carbs"],
+        carbs=carbs,
         icr=user.icr,
         isf=user.isf,
         target_bg=user.target_bg,
@@ -87,11 +127,11 @@ async def process_bg(
         session=session,
         user_id=user.id,
         dish_name=data["dish_name"],
-        portion_g=data["weight_g"],
-        carbs_g=data["carbs"],
-        kcal=data["kcal"],
-        protein_g=data["protein"],
-        fat_g=data["fat"],
+        portion_g=weight_g,
+        carbs_g=carbs,
+        kcal=kcal,
+        protein_g=data["protein_per_g"] * weight_g,
+        fat_g=data["fat_per_g"] * weight_g,
         bolus_dose=bolus["total_dose"],
         current_bg=current_bg,
         photo_file_id=data["photo_id"],
@@ -106,7 +146,10 @@ async def process_bg(
             carb_dose=bolus["carb_dose"],
             correction=bolus["correction_dose"],
             dish=data["dish_name"],
-            carbs=round(data["carbs"], 1),
-            kcal=int(data["kcal"]),
+            carbs=round(carbs, 1),
+            kcal=kcal,
+            icr=user.icr,
+            isf=user.isf,
+            target=user.target_bg,
         )
     )

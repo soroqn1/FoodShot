@@ -1,5 +1,6 @@
 import base64
 import json
+import re
 
 from openai import AsyncOpenAI
 
@@ -8,7 +9,7 @@ from core.config import config
 client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
 
 
-async def analyze_food_photo(image_bytes: bytes) -> dict:
+async def analyze_food_photo(image_bytes: bytes, language: str = "en") -> dict | None:
     base64_image = base64.b64encode(image_bytes).decode("utf-8")
 
     response = await client.chat.completions.create(
@@ -19,8 +20,14 @@ async def analyze_food_photo(image_bytes: bytes) -> dict:
                 "content": [
                     {
                         "type": "text",
-                        "text": "Identify the food in this image. Return ONLY a JSON object with: "
-                        "'dish_name' (str), 'weight_g' (int, estimated), 'confidence' (str: high/medium/low).",
+                        "text": (
+                            f"Identify the food in this image. "
+                            f"Reply with ONLY a raw JSON object (no markdown, no code block) with these fields: "
+                            f"dish_name (string, in {language} language), "
+                            f"dish_name_en (string, always in English), "
+                            f"weight_g (integer, estimated grams), "
+                            f"confidence (string: high, medium, or low)."
+                        ),
                     },
                     {
                         "type": "image_url",
@@ -29,9 +36,14 @@ async def analyze_food_photo(image_bytes: bytes) -> dict:
                 ],
             }
         ],
-        response_format={"type": "json_object"},
     )
 
-    result = json.loads(response.choices[0].message.content)
-    print(f"DEBUG: GPT-4o recognized: {result}")
-    return result
+    content = response.choices[0].message.content
+    if not content:
+        return None
+
+    match = re.search(r"\{.*\}", content, re.DOTALL)
+    if not match:
+        return None
+
+    return json.loads(match.group())
