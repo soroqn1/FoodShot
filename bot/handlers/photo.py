@@ -1,5 +1,6 @@
 from aiogram import Bot, F, Router, types
 from aiogram.fsm.context import FSMContext
+from aiogram_i18n import I18nContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.states import FoodAnalysis
@@ -11,28 +12,29 @@ router = Router()
 
 @router.message(F.photo)
 async def handle_photo(
-    message: types.Message, bot: Bot, session: AsyncSession, state: FSMContext
+    message: types.Message,
+    bot: Bot,
+    session: AsyncSession,
+    state: FSMContext,
+    i18n: I18nContext,
 ):
     user = await crud.get_user(session, message.from_user.id)
     if not user:
         return await message.answer("Please /start registration first.")
 
-    status_msg = await message.answer("🔍 Analyzing your meal...")
+    status_msg = await message.answer(i18n.get("analyzing"))
 
     photo = message.photo[-1]
     photo_file = await bot.get_file(photo.file_id)
     photo_bytes = await bot.download_file(photo_file.file_path)
 
-    # Analysis pipeline
     vision_data = await vision.analyze_food_photo(photo_bytes.read())
     nutrition_data = await nutrition.get_nutrition_data(
         vision_data["dish_name"], vision_data["weight_g"]
     )
 
     if not nutrition_data:
-        return await status_msg.edit_text(
-            "Sorry, couldn't find nutrition data for this dish."
-        )
+        return await status_msg.edit_text(i18n.get("not-found"))
 
     await state.update_data(
         dish_name=vision_data["dish_name"],
@@ -46,14 +48,19 @@ async def handle_photo(
 
     await state.set_state(FoodAnalysis.waiting_for_bg)
     await status_msg.edit_text(
-        f"🥗 {vision_data['dish_name']} (~{vision_data['weight_g']}g)\n"
-        f"Carbs: {nutrition_data['carbs']:.1f}g\n\n"
-        "Please enter your current blood glucose (mmol/L) or send /skip:"
+        i18n.get(
+            "ask-bg",
+            dish=vision_data["dish_name"],
+            weight=vision_data["weight_g"],
+            carbs=round(nutrition_data["carbs"], 1),
+        )
     )
 
 
 @router.message(FoodAnalysis.waiting_for_bg)
-async def process_bg(message: types.Message, session: AsyncSession, state: FSMContext):
+async def process_bg(
+    message: types.Message, session: AsyncSession, state: FSMContext, i18n: I18nContext
+):
     user = await crud.get_user(session, message.from_user.id)
     data = await state.get_data()
 
@@ -62,7 +69,7 @@ async def process_bg(message: types.Message, session: AsyncSession, state: FSMCo
         try:
             current_bg = float(message.text.replace(",", "."))
         except ValueError:
-            return await message.answer("Please enter a number or /skip.")
+            return await message.answer(i18n.get("error-number"))
 
     bolus = calc.calculate_bolus(
         carbs=data["carbs"],
@@ -72,7 +79,6 @@ async def process_bg(message: types.Message, session: AsyncSession, state: FSMCo
         current_bg=current_bg,
     )
 
-    # Save to DB
     await crud.create_meal_log(
         session=session,
         user_id=user.id,
@@ -87,14 +93,16 @@ async def process_bg(message: types.Message, session: AsyncSession, state: FSMCo
         photo_file_id=data["photo_id"],
     )
 
-    response = (
-        f"💉 Suggested bolus: {bolus['total_dose']} U ({user.insulin_type})\n"
-        f"   Carb dose: {bolus['carb_dose']} U\n"
-        f"   Correction: {bolus['correction_dose']} U\n\n"
-        f"Macros for {data['dish_name']}:\n"
-        f"Carbs: {data['carbs']:.1f}g | Kcal: {data['kcal']:.0f}\n"
-        "⚠️ Verify with your doctor!"
-    )
-
     await state.clear()
-    await message.answer(response)
+    await message.answer(
+        i18n.get(
+            "result-bolus",
+            total=bolus["total_dose"],
+            type=user.insulin_type,
+            carb_dose=bolus["carb_dose"],
+            correction=bolus["correction_dose"],
+            dish=data["dish_name"],
+            carbs=round(data["carbs"], 1),
+            kcal=int(data["kcal"]),
+        )
+    )

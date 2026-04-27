@@ -3,9 +3,12 @@ from contextlib import asynccontextmanager
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.storage.redis import RedisStorage
+from aiogram_i18n import I18nMiddleware
+from aiogram_i18n.cores.fluent_runtime_core import FluentRuntimeCore
 from fastapi import FastAPI
 
 from bot.handlers import common, photo, start
+from bot.i18n_manager import UserI18nManager
 from bot.middlewares import DbSessionMiddleware
 from core.config import config
 from db.database import SessionLocal, engine
@@ -19,6 +22,13 @@ storage = RedisStorage.from_url(config.REDIS_URL)
 dp = Dispatcher(storage=storage)
 
 dp.update.middleware(DbSessionMiddleware(session_pool=SessionLocal))
+
+i18n_middleware = I18nMiddleware(
+    core=FluentRuntimeCore(path="locales/{locale}/messages.ftl"),
+    manager=UserI18nManager(),
+)
+i18n_middleware.setup(dp)
+
 dp.include_router(start.router)
 dp.include_router(photo.router)
 dp.include_router(common.router)
