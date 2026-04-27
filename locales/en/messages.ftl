@@ -1,0 +1,17 @@
+start-welcome = Welcome! Let's set up your profile. Enter your ICR (carbs per 1U insulin):
+enter-isf = Enter your ISF (BG drop per 1U insulin):
+enter-target = Enter your target blood glucose (mmol/L):
+enter-insulin = Enter your insulin type (e.g., NovoRapid):
+reg-complete = Registration complete! You can now send food photos.
+already-reg = You are already registered! Send a photo to analyze your meal.
+error-number = Please enter a number.
+analyzing = 🔍 Analyzing your meal...
+not-found = Sorry, couldn't find nutrition data for this dish.
+ask-bg = 🥗 {$dish} (~{$weight}g). Carbs: {$carbs}g. Please enter your current blood glucose (mmol/L) or send /skip:
+result-bolus = 💉 Suggested bolus: {$total} U ({$type}). Carb dose: {$carb_dose} U. Correction: {$correction} U. Macros for {$dish}: Carbs: {$carbs}g | Kcal: {$kcal}. ⚠️ Verify with your doctor!
+history-header = 📜 Your last 10 meals:
+history-item = {$date} | {$dish}. Carbs: {$carbs}g | Dose: {$bolus}U
+history-empty = Your history is empty.
+settings-main = ⚙️ Your Settings: Language: { $lang }. ICR: { $icr }. ISF: { $isf }. Target BG: { $target }. Insulin: { $type }. Choose an action:
+btn-change-lang = 🌍 Change Language
+lang-changed = Language changed to English!

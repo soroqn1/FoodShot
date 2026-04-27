@@ -2,13 +2,12 @@ import logging
 from contextlib import asynccontextmanager
 
 from aiogram import Bot, Dispatcher, types
+from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.redis import RedisStorage
-from aiogram_i18n import I18nMiddleware
-from aiogram_i18n.cores.fluent_runtime_core import FluentRuntimeCore
 from fastapi import FastAPI
 
-from bot.handlers import common, photo, start
-from bot.i18n_manager import UserI18nManager
+from bot.handlers import common, history, photo, settings, start
+from bot.i18n_middleware import SimpleI18nMiddleware
 from bot.middlewares import DbSessionMiddleware
 from core.config import config
 from db.database import SessionLocal, engine
@@ -17,31 +16,27 @@ from db.models import Base
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-bot = Bot(token=config.BOT_TOKEN)
+bot = Bot(token=config.BOT_TOKEN, default=DefaultBotProperties(parse_mode="Markdown"))
 storage = RedisStorage.from_url(config.REDIS_URL)
 dp = Dispatcher(storage=storage)
 
 dp.update.middleware(DbSessionMiddleware(session_pool=SessionLocal))
+dp.update.middleware(SimpleI18nMiddleware())
 
-i18n_middleware = I18nMiddleware(
-    core=FluentRuntimeCore(path="locales/{locale}/messages.ftl"),
-    manager=UserI18nManager(),
-)
-i18n_middleware.setup(dp)
-
+dp.include_router(common.router)
+dp.include_router(history.router)
+dp.include_router(settings.router)
 dp.include_router(start.router)
 dp.include_router(photo.router)
-dp.include_router(common.router)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-
     await bot.set_webhook(url=config.WEBHOOK_URL)
     yield
-    await bot.session.close()
+    await bot.delete_webhook()
 
 
 app = FastAPI(lifespan=lifespan)

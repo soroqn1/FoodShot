@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import MealLog, User
@@ -45,3 +45,10 @@ async def get_user_history(
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def update_user_language(session: AsyncSession, user_id: int, language: str):
+    await session.execute(
+        update(User).where(User.id == user_id).values(language=language)
+    )
+    await session.commit()

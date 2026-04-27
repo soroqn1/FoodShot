@@ -1,17 +1,13 @@
 from aiogram import Router, types
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+
+from core.i18n import I18n
 
 router = Router()
 
 
-@router.message(Command("start"))
-async def cmd_start(message: types.Message):
-    await message.answer("Привет! Я FoodShot. Пока что я работаю в режиме эхо-бота.")
-
-
-@router.message()
-async def echo_handler(message: types.Message):
-    try:
-        await message.send_copy(chat_id=message.chat.id)
-    except Exception:
-        await message.answer(message.text)
+@router.message(Command("help"))
+async def cmd_help(message: types.Message, state: FSMContext, i18n: I18n):
+    await state.clear()
+    await message.answer(i18n.get("menu-main"))

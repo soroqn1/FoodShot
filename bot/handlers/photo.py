@@ -1,9 +1,9 @@
 from aiogram import Bot, F, Router, types
 from aiogram.fsm.context import FSMContext
-from aiogram_i18n import I18nContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.states import FoodAnalysis
+from core.i18n import I18n
 from db import crud
 from services import calc, nutrition, vision
 
@@ -16,7 +16,7 @@ async def handle_photo(
     bot: Bot,
     session: AsyncSession,
     state: FSMContext,
-    i18n: I18nContext,
+    i18n: I18n,
 ):
     user = await crud.get_user(session, message.from_user.id)
     if not user:
@@ -57,10 +57,14 @@ async def handle_photo(
     )
 
 
-@router.message(FoodAnalysis.waiting_for_bg)
+@router.message(FoodAnalysis.waiting_for_bg, F.text)
 async def process_bg(
-    message: types.Message, session: AsyncSession, state: FSMContext, i18n: I18nContext
+    message: types.Message, session: AsyncSession, state: FSMContext, i18n: I18n
 ):
+    if message.text and message.text.startswith("/"):
+        await state.clear()
+        return
+
     user = await crud.get_user(session, message.from_user.id)
     data = await state.get_data()
 
