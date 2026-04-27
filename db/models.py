@@ -17,6 +17,7 @@ class User(Base):
     isf: Mapped[float] = mapped_column(Float)
     target_bg: Mapped[float] = mapped_column(Float)
     insulin_type: Mapped[str | None] = mapped_column(String(50))
+    language: Mapped[str] = mapped_column(String(5), server_default="en")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     meals: Mapped[list["MealLog"]] = relationship(

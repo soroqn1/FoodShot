@@ -6,8 +6,13 @@ tasks:
     cmds:
       - poetry install
 
+  infra:
+    desc: Start only infrastructure (db, redis)
+    cmds:
+      - docker-compose up -d db redis
+
   up:
-    desc: Start all services (db, redis)
+    desc: Start all services including bot
     cmds:
       - docker-compose up -d
 

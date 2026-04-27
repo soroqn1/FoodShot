@@ -5,7 +5,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.storage.redis import RedisStorage
 from fastapi import FastAPI
 
-from bot.handlers import common
+from bot.handlers import common, photo, start
 from bot.middlewares import DbSessionMiddleware
 from core.config import config
 from db.database import SessionLocal, engine
@@ -19,6 +19,8 @@ storage = RedisStorage.from_url(config.REDIS_URL)
 dp = Dispatcher(storage=storage)
 
 dp.update.middleware(DbSessionMiddleware(session_pool=SessionLocal))
+dp.include_router(start.router)
+dp.include_router(photo.router)
 dp.include_router(common.router)
 
 
