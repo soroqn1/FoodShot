@@ -34,6 +34,7 @@ dp.include_router(photo.router)
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    logger.info("Setting Telegram webhook to %s", config.WEBHOOK_URL)
     await bot.set_webhook(url=config.WEBHOOK_URL)
     yield
     await bot.delete_webhook()
@@ -43,6 +44,7 @@ app = FastAPI(lifespan=lifespan)
 
 
 @app.post("/webhook")
+@app.post("/webhook/webhook")
 async def telegram_webhook(update: dict):
     telegram_update = types.Update(**update)
     await dp.feed_update(bot, telegram_update)
