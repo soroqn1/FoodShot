@@ -25,6 +25,9 @@ services:
     restart: always
     env_file:
       - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-foodshot}:${POSTGRES_PASSWORD:-foodshot_pass}@db:5432/${POSTGRES_DB:-foodshot}
+      REDIS_URL: redis://redis:6379/0
     ports:
       - "${PORT:-8000}:8000"
     depends_on:
