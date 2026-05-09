@@ -37,6 +37,10 @@ The bot works directly inside Telegram:
 - asks for current blood glucose or accepts `/skip`;
 - returns a bolus breakdown and saves the meal history.
 
+<p align="center">
+  <img src="./doc/tg_fries.png" alt="FoodShot Telegram bot demo" width="720">
+</p>
+
 ## How It Works
 
 ```text
